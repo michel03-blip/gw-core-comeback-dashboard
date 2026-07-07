@@ -515,19 +515,37 @@ function buildTlChart(title,td){
   if(charts.tl){charts.tl.destroy();delete charts.tl;}
   const ctx=document.getElementById('tl_chart');
   if(!ctx)return;
-  const datasets=[];
   const isAggregate = title.includes('합산');
   const retDt = td.ret;
+
+  // Build union of all dates across selected regions
+  const datesSet = new Set();
+  for(const r of tlRegions){
+    const rd=td.regions[r];
+    if(rd) rd.forEach(p => datesSet.add(p.d));
+  }
+  const labels = [...datesSet].sort();
+
+  const datasets=[];
   for(const r of tlRegions){
     const rd=td.regions[r];
     if(!rd)continue;
-    let chartData;
+    // Build lookup
+    const lookup = {};
+    rd.forEach(p => { lookup[p.d] = p; });
+    let avg = 1;
     if(tlMode==='index' && tlMetric!=='pur'){
-      const avg = getPreAvg(rd, retDt, tlMetric);
-      chartData = rd.map(p => ({x:p.d, y: Math.round(p[tlMetric]/avg*100)}));
-    } else {
-      chartData = rd.map(p => ({x:p.d, y:p[tlMetric]}));
+      avg = getPreAvg(rd, retDt, tlMetric);
     }
+    const chartData = labels.map(d => {
+      const p = lookup[d];
+      if(!p) return null;
+      if(tlMode==='index' && tlMetric!=='pur'){
+        return Math.round(p[tlMetric] / avg * 100);
+      } else {
+        return p[tlMetric];
+      }
+    });
     datasets.push({
       label:r,
       data:chartData,
@@ -536,6 +554,7 @@ function buildTlChart(title,td){
       pointRadius:0,
       tension:0.3,
       fill:false,
+      spanGaps:true,
     });
   }
   const yLabel=tlMetric==='pur'?'PUR (%)':(tlMode==='index'?tlMetric.toUpperCase()+' Index (100=복귀전 평균)':tlMetric.toUpperCase());
@@ -543,7 +562,7 @@ function buildTlChart(title,td){
 
   const refLine = (tlMode==='index' && tlMetric!=='pur') ? 100 : null;
   charts.tl=new Chart(ctx,{
-    type:'line',data:{datasets},
+    type:'line',data:{labels, datasets},
     options:{
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
@@ -559,8 +578,7 @@ function buildTlChart(title,td){
       afterDraw(chart){
         if(isAggregate)return;
         const xAxis=chart.scales.x;
-        const labels=chart.data.datasets[0]?chart.data.datasets[0].data.map(d=>d.x):[];
-        const idx=labels.indexOf(retDt);
+        const idx=chart.data.labels.indexOf(retDt);
         if(idx<0)return;
         const x=xAxis.getPixelForValue(idx);
         const ya=chart.scales.y;
