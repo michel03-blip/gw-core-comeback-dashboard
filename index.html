@@ -516,6 +516,7 @@ function buildTlChart(title,td){
   const ctx=document.getElementById('tl_chart');
   if(!ctx)return;
   const datasets=[];
+  const isAggregate = title.includes('합산');
   const retDt = td.ret;
   for(const r of tlRegions){
     const rd=td.regions[r];
@@ -556,6 +557,7 @@ function buildTlChart(title,td){
     plugins:[{
       id:'retLine',
       afterDraw(chart){
+        if(isAggregate)return;
         const xAxis=chart.scales.x;
         const labels=chart.data.datasets[0]?chart.data.datasets[0].data.map(d=>d.x):[];
         const idx=labels.indexOf(retDt);
